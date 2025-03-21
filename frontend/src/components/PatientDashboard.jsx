@@ -1,4 +1,6 @@
-import { Box, Typography, TextField, Button, Grid, Paper, Select, MenuItem } from '@mui/material';
+import {
+  Box, Typography, TextField, Button, Grid, Paper, Select, MenuItem, CircularProgress
+} from '@mui/material';
 import { useState, useEffect } from 'react';
 import ChatWindow from './ChatWindow';
 import axios from 'axios';
@@ -7,65 +9,124 @@ export default function PatientDashboard() {
   const user = JSON.parse(localStorage.getItem('user'));
   const [doctors, setDoctors] = useState([]);
   const [appointments, setAppointments] = useState([]);
-  const [bookingData, setBookingData] = useState({
-    doctorId: '',
-    date: '',
-    time: ''
-  });
+  const [prescriptions, setPrescriptions] = useState([]);
+  const [reports, setReports] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [bookingData, setBookingData] = useState({ doctorId: '', date: '', time: '' });
 
+  // Initial data fetch
   useEffect(() => {
-    fetchDoctors();
-    fetchAppointments();
+    fetchData();
   }, []);
 
+  const fetchData = async () => {
+    setLoading(true);
+    try {
+      await Promise.all([fetchDoctors(), fetchAppointments(), fetchPrescriptions(), fetchReports()]);
+    } catch (err) {
+      console.error('❌ Error fetching data:', err);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // Fetch doctors
   const fetchDoctors = async () => {
-    try {
-      const res = await axios.get('http://localhost:3000/api/doctors/all');
-      setDoctors(res.data);
-    } catch (error) {
-      console.error('Failed to fetch doctors:', error);
-    }
+    const res = await axios.get('http://localhost:3000/api/doctors/all');
+    setDoctors(res.data);
   };
 
+  // Fetch patient appointments
   const fetchAppointments = async () => {
-    try {
-      const res = await axios.get(`http://localhost:3000/api/appointments/get/${user?.patient?._id}`);
-      setAppointments(res.data);
-    } catch (error) {
-      console.error('Failed to fetch appointments:', error);
-    }
+    const res = await axios.get(`http://localhost:3000/api/appointments/get/${user?.patient?._id}`);
+    setAppointments(res.data);
+    
   };
 
+  // Fetch prescriptions
+  const fetchPrescriptions = async () => {
+    const res = await axios.get(`http://localhost:3000/api/prescription/get/${user?.patient?._id}`);
+    setPrescriptions(res.data);
+  };
+
+  // Fetch reports
+  const fetchReports = async () => {
+    const res = await axios.get(`http://localhost:3000/api/report/${user?.patient?._id}`);
+    setReports(res.data);
+  };
+
+  // Book appointment handler
   const handleBookAppointment = async () => {
-    if (!bookingData.doctorId || !bookingData.date || !bookingData.time) {
-      return alert('Please fill all fields');
-    }
+    const { doctorId, date, time } = bookingData;
+    if (!doctorId || !date || !time) return alert('⚠️ Please fill all fields.');
+
     try {
       await axios.post('http://localhost:3000/api/appointments/book', {
         ...bookingData,
         patientId: user.patient._id
       });
-      alert('Appointment Booked!');
+      alert('✅ Appointment booked successfully!');
       setBookingData({ doctorId: '', date: '', time: '' });
       fetchAppointments();
     } catch (error) {
-      console.error('Failed to book appointment:', error);
-      alert('Failed to book appointment.');
+      console.error('❌ Failed to book appointment:', error);
+      alert('❌ Error booking appointment.');
     }
   };
 
-  if (!user?.patient) {
-    return <Typography>Loading dashboard...</Typography>;
-  }
+  // File download handler (supports both absolute and relative paths)
+  const handleDownload = async (fileUrl, fileName) => {
+    try {
+      const downloadUrl = fileUrl.startsWith('http') ? fileUrl : `http://localhost:3000${fileUrl}`;
+      const response = await axios.get(downloadUrl, { responseType: 'blob' });
+      const url = window.URL.createObjectURL(new Blob([response.data]));
+      const link = document.createElement('a');
+      link.href = url;
+      link.setAttribute('download', fileName);
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+    } catch (error) {
+      console.error('❌ Failed to download:', error);
+    }
+  };
+
+  // Download prescription text as .txt file
+  const downloadTextPrescription = (text, index) => {
+    const element = document.createElement('a');
+    const file = new Blob([text], { type: 'text/plain' });
+    element.href = URL.createObjectURL(file);
+    element.download = `prescription-${index + 1}.txt`;
+    document.body.appendChild(element);
+    element.click();
+    element.remove();
+  };
+
+  // Helper: Get doctor name by ID
+  const getDoctorName = (doctorId) => {
+    const doc = doctors.find(d => d._id === (typeof doctorId === 'object' ? doctorId?._id : doctorId));
+    return doc?.name || 'N/A';
+  };
+
+  // Loading screen
+  if (loading) return (
+    <Box p={4} textAlign="center">
+      <CircularProgress />
+      <Typography mt={2}>Loading your dashboard...</Typography>
+    </Box>
+  );
 
   return (
-    <Box p={4}>
-      <Typography variant="h4" sx={{ color: '#1976d2', fontWeight: 'bold', mb: 2 }} gutterBottom>Patient Dashboard</Typography>
-      <Typography variant="h6">Welcome, {user.patient.name}</Typography>
+    <Box p={4} sx={{ backgroundColor: '#f5f5f5', minHeight: '100vh' }}>
+      {/* Header */}
+      <Typography variant="h4" sx={{ color: '#1976d2', fontWeight: 'bold', mb: 2 }}>
+        Patient Dashboard
+      </Typography>
+      <Typography variant="h6">Welcome, {user?.patient?.name || 'Patient'}</Typography>
 
       {/* Appointment Booking */}
-      <Paper elevation={3} sx={{ p: 3, mt: 4 }}>
-        <Typography variant="h6" gutterBottom>Book Appointment</Typography>
+      <Paper elevation={4} sx={{ p: 4, mt: 4 }}>
+        <Typography variant="h6" gutterBottom>📅 Book Appointment</Typography>
         <Grid container spacing={2}>
           <Grid item xs={12} sm={4}>
             <Select
@@ -103,21 +164,23 @@ export default function PatientDashboard() {
             />
           </Grid>
           <Grid item xs={12} sm={2}>
-            <Button variant="contained" fullWidth onClick={handleBookAppointment}>Book</Button>
+            <Button variant="contained" fullWidth color="primary" onClick={handleBookAppointment}>
+              Book
+            </Button>
           </Grid>
         </Grid>
       </Paper>
 
-      {/* Appointment List */}
-      <Paper elevation={3} sx={{ p: 3, mt: 4 }}>
-        <Typography variant="h6" gutterBottom>My Appointments</Typography>
+      {/* Appointments */}
+      <Paper elevation={4} sx={{ p: 4, mt: 4 }}>
+        <Typography variant="h6" gutterBottom>📋 My Appointments</Typography>
         {appointments.length === 0 ? (
           <Typography>No appointments booked yet.</Typography>
         ) : (
           appointments.map((apt) => (
             <Box key={apt._id} sx={{ my: 2, p: 2, border: '1px solid #ccc', borderRadius: '8px' }}>
-              <Typography><strong>Doctor:</strong> {apt.doctorId?.name || 'Doctor Info Missing'}</Typography>
-              <Typography><strong>Date:</strong> {apt.date}</Typography>
+              <Typography><strong>Doctor:</strong> {getDoctorName(apt.doctorId)}</Typography>
+              <Typography><strong>Date:</strong> {new Date(apt.date).toLocaleDateString()}</Typography>
               <Typography><strong>Time:</strong> {apt.time}</Typography>
               <Typography><strong>Status:</strong> {apt.status}</Typography>
             </Box>
@@ -125,9 +188,76 @@ export default function PatientDashboard() {
         )}
       </Paper>
 
+      {/* Prescriptions */}
+      <Paper elevation={4} sx={{ p: 4, mt: 4 }}>
+        <Typography variant="h6" gutterBottom>💊 My Prescriptions</Typography>
+        {prescriptions.length === 0 ? (
+          <Typography>No prescriptions available.</Typography>
+        ) : (
+          prescriptions.map((pres, idx) => (
+            <Box key={idx} sx={{ my: 2, p: 2, border: '1px solid #ccc', borderRadius: '8px' }}>
+              <Typography><strong>Doctor:</strong> {getDoctorName(pres.doctorId)}</Typography>
+              <Typography><strong>Notes:</strong></Typography>
+              <Box sx={{ backgroundColor: '#eee', p: 1, borderRadius: '4px' }}>
+                <pre>{pres.prescriptionText || 'No prescription text available'}</pre>
+              </Box>
+              {pres.pdfUrl ? (
+                <Button
+                  variant="outlined"
+                  color="success"
+                  onClick={() => handleDownload(pres.pdfUrl, `prescription-${idx + 1}.pdf`)}
+                  sx={{ mt: 1 }}
+                >
+                  📥 Download PDF
+                </Button>
+              ) : (
+                <Button
+                  variant="outlined"
+                  color="secondary"
+                  onClick={() => downloadTextPrescription(pres.prescriptionText || '', idx)}
+                  sx={{ mt: 1 }}
+                >
+                  📥 Download as TXT
+                </Button>
+              )}
+            </Box>
+          ))
+        )}
+      </Paper>
+
+      {/* Reports */}
+      <Paper elevation={4} sx={{ p: 4, mt: 4 }}>
+        <Typography variant="h6" gutterBottom>📑 My Reports</Typography>
+        {reports.length === 0 ? (
+          <Typography>No reports uploaded yet.</Typography>
+        ) : (
+          reports.map((rep, idx) => (
+            <Box key={idx} sx={{ my: 2, p: 2, border: '1px solid #ccc', borderRadius: '8px' }}>
+              <Typography><strong>File:</strong> {rep.fileName || `Report ${idx + 1}`}</Typography>
+              <Typography><strong>Uploaded:</strong> {new Date(rep.createdAt).toLocaleDateString()}</Typography>
+              <Typography><strong>Doctor:</strong> {getDoctorName(rep.doctorId)}</Typography>
+
+              <Button
+                variant="outlined"
+                color="primary"
+                onClick={() => handleDownload(rep.filePath, rep.fileName || `report-${idx + 1}.pdf`)}
+                sx={{ mt: 1 }}
+              >
+                📥 Download Report
+              </Button>
+            </Box>
+          ))
+        )}
+      </Paper>
+
       {/* Chat Section */}
       <Box mt={4}>
-        <ChatWindow role="patient" user={user.patient} patientId={user.patient._id} patientName={user.patient.name} />
+        <ChatWindow
+          role="patient"
+          user={user?.patient}
+          patientId={user?.patient?._id}
+          patientName={user?.patient?.name}
+        />
       </Box>
     </Box>
   );

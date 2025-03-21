@@ -27,6 +27,12 @@ app.use('/api/doctors', require('./routes/doctorRoutes'));
 app.use('/api/patients', require('./routes/patientRoutes'));
 app.use('/api/chat', require('./routes/chatRoutes'));
 app.use('/api/appointments', require('./routes/appointment'));
+const prescriptionRoutes = require('./routes/prescription');
+app.use('/api/prescription', prescriptionRoutes);
+const reportRoutes = require('./routes/report.js');
+app.use('/api/report', reportRoutes);
+
+app.use('/uploads', express.static('uploads'));
 
 // Create HTTP server and attach socket.io
 const server = http.createServer(app);

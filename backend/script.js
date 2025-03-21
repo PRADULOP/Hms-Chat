@@ -31,7 +31,7 @@ async function insertData() {
     const patientsData = [
       new Patient({ name: "Anna Johnson", email: "anna@hospital.com", password: "patient123", age: 25, gender: "Female", contactInfo: "9123456780" }),
       new Patient({ name: "Mark Lee", email: "mark@hospital.com", password: "patient123", age: 30, gender: "Male", contactInfo: "9123456781" }),
-      new Patient({ name: "Sophia Turner", email: "p", password: "patient123", age: 28, gender: "Female", contactInfo: "9123456782" }),
+      new Patient({ name: "Sophia Turner", email: "sophia@hospital.com", password: "patient123", age: 28, gender: "Female", contactInfo: "9123456782" }),
       new Patient({ name: "David Miller", email: "david@hospital.com", password: "patient123", age: 35, gender: "Male", contactInfo: "9123456783" }),
       new Patient({ name: "Olivia White", email: "olivia@hospital.com", password: "patient123", age: 22, gender: "Female", contactInfo: "9123456784" }),
     ];
